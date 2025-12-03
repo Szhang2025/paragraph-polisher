@@ -1,126 +1,84 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Report Grader - Instant Feedback</title>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.449/build/pdf.mjs"></script>
-    <style>
-        body { font-family: Arial, sans-serif; background: #f0f8ff; padding: 30px; text-align: center; }
-        .box { max-width: 700px; margin: 20px auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-        input, button { padding: 12px; margin: 10px; font-size: 16px; }
-        button { background: #4f46e5; color: white; border: none; border-radius: 8px; cursor: pointer; }
-        button:hover { background: #4338ca; }
-        #result { display: none; margin-top: 30px; padding: 25px; background: #ecfdf5; border: 2px solid #10b981; border-radius: 12px; }
-        #score { font-size: 80px; font-weight: bold; color: #1e40af; margin: 10px 0; }
-        #status { color: #666; font-style: italic; margin: 20px 0; }
-    </style>
+  <meta charset="UTF-8">
+  <title>Sentence Polisher</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      max-width: 700px; 
+      margin: 40px auto; 
+    }
+    textarea {
+      width: 100%; 
+      height: 100px; 
+      padding: 10px;
+      font-size: 16px;
+    }
+    button {
+      padding: 10px 20px; 
+      font-size: 16px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+    #output {
+      width: 100%;
+      height: 120px;
+      margin-top: 15px;
+      padding: 10px;
+      font-size: 16px;
+    }
+  </style>
 </head>
 <body>
-    <div class="box">
-        <h1>AI Project Report Grader</h1>
-        <p>Get instant score (out of 100) and feedback using real GPT AI</p>
 
-        <h3>1. Enter your OpenAI API key</h3>
-        <input type="password" id="api-key" placeholder="sk-..." style="width:300px;">
-        <button onclick="saveKey()">Save Key</button>
-        <br><small>Get free key: <a href="https://platform.openai.com/api-keys" target="_blank">click here</a></small>
+  <h2>Sentence Polisher</h2>
 
-        <h3>2. Upload your project report PDF</h3>
-        <input type="file" id="pdf-file" accept=".pdf">
-        <div id="status"></div>
+  <label><strong>Input your sentence:</strong></label>
+  <textarea id="inputText" placeholder="Type a sentence..."></textarea>
 
-        <div id="result">
-            <h2>Your Score</h2>
-            <div id="score">0</div>
-            <h3>Detailed Feedback</h3>
-            <div id="feedback" style="text-align:left; white-space: pre-line;"></div>
-        </div>
-    </div>
+  <button onclick="polishText()">Polish</button>
 
-    <script type="module">
-        import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.449/build/pdf.mjs';
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.449/build/pdf.worker.mjs';
+  <label><strong>Polished sentence:</strong></label>
+  <textarea id="output" readonly></textarea>
 
-        // Auto-load saved key
-        document.getElementById('api-key').value = localStorage.getItem('openai_key') || '';
+  <script>
+    async function polishText() {
+      const input = document.getElementById("inputText").value;
+      const outputBox = document.getElementById("output");
+      
+      if (!input.trim()) {
+        outputBox.value = "Please type a sentence first.";
+        return;
+      }
 
-        function saveKey() {
-            const key = document.getElementById('api-key').value.trim();
-            if (key) {
-                localStorage.setItem('openai_key', key);
-                alert('Key saved! Now upload your PDF.');
-            } else {
-                alert('Please enter your key first');
-            }
-        }
+      outputBox.value = "Polishing...";
 
-        // Automatically analyze when PDF is selected
-        document.getElementById('pdf-file').addEventListener('change', async function() {
-            const file = this.files[0];
-            if (!file) return;
-            
-            const key = localStorage.getItem('openai_key');
-            if (!key) {
-                alert('Please save your OpenAI API key first!');
-                return;
-            }
-
-            document.getElementById('status').innerHTML = 'Reading your PDF...';
-            document.getElementById('result').style.display = 'none';
-
-            try {
-                // Extract text
-                const arrayBuffer = await file.arrayBuffer();
-                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                let text = '';
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const content = await page.getTextContent();
-                    content.items.forEach(item => text += item.str + ' ');
-                }
-                text = text.trim();
-                if (text.length < 100) {
-                    throw new Error('No text found in PDF. Make sure it\'s a text PDF (not a scanned image).');
-                }
-
-                document.getElementById('status').innerHTML = 'Sending to GPT AI... (10-20 seconds)';
-
-                // Call OpenAI GPT
-                const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + key
-                    },
-                    body: JSON.stringify({
-                        model: 'gpt-4o-mini',
-                        temperature: 0.3,
-                        messages: [
-                            { role: "system", content: "You are a professor grading a project report. Reply ONLY with:\nSCORE: XX/100\n\nFEEDBACK:\n• Strength 1\n• Strength 2\n• Improvement 1\n• Improvement 2" },
-                            { role: "user", content: "Grade this project report:\n\n" + text.substring(0, 50000) }
-                        ]
-                    })
-                });
-
-                if (!response.ok) throw new Error('Invalid API key or network issue');
-
-                const data = await response.json();
-                const output = data.choices[0].message.content;
-
-                const score = output.match(/SCORE:\s*(\d+)/i)[1];
-                const feedback = output.split('FEEDBACK:')[1].trim();
-
-                document.getElementById('score').innerHTML = score + '/100';
-                document.getElementById('feedback').innerHTML = feedback;
-                document.getElementById('result').style.display = 'block';
-                document.getElementById('status').innerHTML = 'Done! 🎉';
-
-            } catch (error) {
-                document.getElementById('status').innerHTML = '';
-                alert('Error: ' + error.message);
-            }
+      try {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer YOUR_OPENAI_API_KEY"
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              { role: "system", content: "You polish sentences to be clear, concise, and natural." },
+              { role: "user", content: input }
+            ]
+          })
         });
-    </script>
+
+        const data = await response.json();
+        const polished = data.choices?.[0]?.message?.content?.trim();
+
+        outputBox.value = polished || "Error: no response.";
+      } catch (err) {
+        outputBox.value = "API error: " + err.message;
+      }
+    }
+  </script>
+
 </body>
 </html>
